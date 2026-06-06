@@ -1,6 +1,6 @@
 import os,sys
-# os.chdir(os.path.dirname(os.path.abspath(__file__)))
-# sys.path.insert(1, os.path.join(sys.path[0], '..'))
+#os.chdir(os.path.dirname(os.path.abspath(__file__)))
+#sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 import requests
 import pandas as pd
@@ -9,7 +9,7 @@ import random
 import datetime,time
 import logging
 import re
-import urllib.parse
+import urllib.parse 
 
 mode ='local'
 
@@ -54,38 +54,19 @@ if(mode=='local'):
         return output
 
 
-# headers = {
-#     'Connection': 'keep-alive',
-#     'Cache-Control': 'max-age=0',
-#     'DNT': '1',
-#     'Upgrade-Insecure-Requests': '1',
-#     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36',
-#     'Sec-Fetch-User': '?1',
-#     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-#     'Sec-Fetch-Site': 'none',
-#     'Sec-Fetch-Mode': 'navigate',
-#     'Accept-Encoding': 'gzip, deflate, br',
-#     'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
-# }
-
-#Rahul_Mittal's entry
 headers = {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "en-US,en;q=0.9,en-IN;q=0.8,en-GB;q=0.7",
-            "cache-control": "max-age=0",
-            "priority": "u=0, i",
-            "sec-ch-ua": '"Microsoft Edge";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0"
-        }
-
-
+    'Connection': 'keep-alive',
+    'Cache-Control': 'max-age=0',
+    'DNT': '1',
+    'Upgrade-Insecure-Requests': '1',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36',
+    'Sec-Fetch-User': '?1',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-Mode': 'navigate',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
+}
 
 #Curl headers
 curl_headers = ''' -H "authority: beta.nseindia.com" -H "cache-control: max-age=0" -H "dnt: 1" -H "upgrade-insecure-requests: 1" -H "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36" -H "sec-fetch-user: ?1" -H "accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" -H "sec-fetch-site: none" -H "sec-fetch-mode: navigate" -H "accept-encoding: gzip, deflate, br" -H "accept-language: en-US,en;q=0.9,hi;q=0.8" --compressed'''
@@ -102,17 +83,10 @@ def running_status():
 
 #Getting FNO Symboles
 def fnolist():
-    # df = pd.read_csv("https://www1.nseindia.com/content/fo/fo_mktlots.csv")
-    # return [x.strip(' ') for x in df.drop(df.index[3]).iloc[:,1].to_list()]
-
     positions = nsefetch('https://www.nseindia.com/api/equity-stockIndices?index=SECURITIES%20IN%20F%26O')
-
-    nselist=['NIFTY','NIFTYIT','BANKNIFTY']
-
-    i=0
-    for x in range(i, len(positions['data'])):
-        nselist=nselist+[positions['data'][x]['symbol']]
-
+    nselist = indices.copy()
+    for x in range(len(positions['data'])):
+        nselist.append(positions['data'][x]['symbol'])
     return nselist
 
 def nsesymbolpurify(symbol):
@@ -121,14 +95,45 @@ def nsesymbolpurify(symbol):
 
 def nse_optionchain_scrapper(symbol):
     symbol = nsesymbolpurify(symbol)
-    if any(x in symbol for x in indices):
-        payload = nsefetch('https://www.nseindia.com/api/option-chain-indices?symbol='+symbol)
-    else:
-        payload = nsefetch('https://www.nseindia.com/api/option-chain-equities?symbol='+symbol)
+    # Using getSymbolDerivativesData as it provides all expiries and strikes in one go
+    url = f'https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolDerivativesData&symbol={symbol}'
+    payload = nsefetch(url)
+    
+    # Transformation to match the "data" structure expected by pcr and other functions
+    if payload and 'data' in payload:
+        new_data = []
+        # Group by strikePrice and expiryDate to create a combined CE/PE structure if possible,
+        # or just provide the raw list if the consumers can handle it.
+        # The current pcr() handles a list of entries where each has CE/PE keys OR is the entry itself.
+        
+        # Actually, let's restructure it to be more compatible with the expected 'data' format:
+        # a list of dictionaries, each having 'strikePrice', 'expiryDate', 'CE', 'PE'.
+        combined = {}
+        for entry in payload['data']:
+            sp = entry.get('strikePrice')
+            ed = entry.get('expiryDate')
+            ot = entry.get('optionType')
+            if not sp or not ed or ot == 'XX': continue
+            
+            key = (sp, ed)
+            if key not in combined:
+                combined[key] = {'strikePrice': sp, 'expiryDate': ed, 'CE': None, 'PE': None}
+            
+            combined[key][ot] = entry
+            
+        payload['data'] = list(combined.values())
+        
     return payload
 
 
 def oi_chain_builder(symbol,expiry="latest",oi_mode="full"):
+
+    if expiry == "latest":
+        dates = expiry_list(symbol, type="list")
+        if dates:
+            expiry = dates[0]
+        else:
+            return pd.DataFrame(), 0.0, ""
 
     payload = nse_optionchain_scrapper(symbol)
 
@@ -138,109 +143,239 @@ def oi_chain_builder(symbol,expiry="latest",oi_mode="full"):
         col_names = ['CALLS_Chart','CALLS_OI','CALLS_Chng in OI','CALLS_Volume','CALLS_IV','CALLS_LTP','CALLS_Net Chng','CALLS_Bid Qty','CALLS_Bid Price','CALLS_Ask Price','CALLS_Ask Qty','Strike Price','PUTS_Bid Qty','PUTS_Bid Price','PUTS_Ask Price','PUTS_Ask Qty','PUTS_Net Chng','PUTS_LTP','PUTS_IV','PUTS_Volume','PUTS_Chng in OI','PUTS_OI','PUTS_Chart']
     oi_data = pd.DataFrame(columns = col_names)
 
-    #oi_row = {'CALLS_OI':0, 'CALLS_Chng in OI':0, 'CALLS_Volume':0, 'CALLS_IV':0, 'CALLS_LTP':0, 'CALLS_Net Chng':0, 'Strike Price':0, 'PUTS_OI':0, 'PUTS_Chng in OI':0, 'PUTS_Volume':0, 'PUTS_IV':0, 'PUTS_LTP':0, 'PUTS_Net Chng':0}
-    oi_row = {'CALLS_OI':0, 'CALLS_Chng in OI':0, 'CALLS_Volume':0, 'CALLS_IV':0, 'CALLS_LTP':0, 'CALLS_Net Chng':0, 'CALLS_Bid Qty':0,'CALLS_Bid Price':0,'CALLS_Ask Price':0,'CALLS_Ask Qty':0,'Strike Price':0, 'PUTS_OI':0, 'PUTS_Chng in OI':0, 'PUTS_Volume':0, 'PUTS_IV':0, 'PUTS_LTP':0, 'PUTS_Net Chng':0,'PUTS_Bid Qty':0,'PUTS_Bid Price':0,'PUTS_Ask Price':0,'PUTS_Ask Qty':0}
-    if(expiry=="latest"):
-        expiry = payload['records']['expiryDates'][0]
-    m=0
-    for m in range(len(payload['records']['data'])):
-        if(payload['records']['data'][m]['expiryDate']==expiry):
-            if(1>0):
-                try:
-                    oi_row['CALLS_OI']=payload['records']['data'][m]['CE']['openInterest']
-                    oi_row['CALLS_Chng in OI']=payload['records']['data'][m]['CE']['changeinOpenInterest']
-                    oi_row['CALLS_Volume']=payload['records']['data'][m]['CE']['totalTradedVolume']
-                    oi_row['CALLS_IV']=payload['records']['data'][m]['CE']['impliedVolatility']
-                    oi_row['CALLS_LTP']=payload['records']['data'][m]['CE']['lastPrice']
-                    oi_row['CALLS_Net Chng']=payload['records']['data'][m]['CE']['change']
-                    if(oi_mode=='full'):
-                        oi_row['CALLS_Bid Qty']=payload['records']['data'][m]['CE']['bidQty']
-                        oi_row['CALLS_Bid Price']=payload['records']['data'][m]['CE']['bidprice']
-                        oi_row['CALLS_Ask Price']=payload['records']['data'][m]['CE']['askPrice']
-                        oi_row['CALLS_Ask Qty']=payload['records']['data'][m]['CE']['askQty']
-                except KeyError:
-                    oi_row['CALLS_OI'], oi_row['CALLS_Chng in OI'], oi_row['CALLS_Volume'], oi_row['CALLS_IV'], oi_row['CALLS_LTP'],oi_row['CALLS_Net Chng']=0,0,0,0,0,0
-                    if(oi_mode=='full'):
-                        oi_row['CALLS_Bid Qty'],oi_row['CALLS_Bid Price'],oi_row['CALLS_Ask Price'],oi_row['CALLS_Ask Qty']=0,0,0,0
-                    pass
+    # We will populate these dynamically
+    rows_list = []
+    
+    if 'expiryDates' not in payload:
+        # Fallback for new API structure
+        if(expiry=="latest"):
+            expiry = expiry_list(symbol, type="list")[0]
+        data_list = payload['data']
+    else:
+        # Legacy structure support
+        if(expiry=="latest"):
+            expiry = payload['records']['expiryDates'][0]
+        data_list = payload['records']['data']
 
-                oi_row['Strike Price']=payload['records']['data'][m]['strikePrice']
-
-                try:
-                    oi_row['PUTS_OI']=payload['records']['data'][m]['PE']['openInterest']
-                    oi_row['PUTS_Chng in OI']=payload['records']['data'][m]['PE']['changeinOpenInterest']
-                    oi_row['PUTS_Volume']=payload['records']['data'][m]['PE']['totalTradedVolume']
-                    oi_row['PUTS_IV']=payload['records']['data'][m]['PE']['impliedVolatility']
-                    oi_row['PUTS_LTP']=payload['records']['data'][m]['PE']['lastPrice']
-                    oi_row['PUTS_Net Chng']=payload['records']['data'][m]['PE']['change']
-                    if(oi_mode=='full'):
-                        oi_row['PUTS_Bid Qty']=payload['records']['data'][m]['PE']['bidQty']
-                        oi_row['PUTS_Bid Price']=payload['records']['data'][m]['PE']['bidprice']
-                        oi_row['PUTS_Ask Price']=payload['records']['data'][m]['PE']['askPrice']
-                        oi_row['PUTS_Ask Qty']=payload['records']['data'][m]['PE']['askQty']
-                except KeyError:
-                    oi_row['PUTS_OI'], oi_row['PUTS_Chng in OI'], oi_row['PUTS_Volume'], oi_row['PUTS_IV'], oi_row['PUTS_LTP'],oi_row['PUTS_Net Chng']=0,0,0,0,0,0
-                    if(oi_mode=='full'):
-                        oi_row['PUTS_Bid Qty'],oi_row['PUTS_Bid Price'],oi_row['PUTS_Ask Price'],oi_row['PUTS_Ask Qty']=0,0,0,0
+    for m in range(len(data_list)):
+        current_expiry_str = data_list[m].get('expiryDates') or data_list[m].get('expiryDate')
+        try:
+            # Convert both to date objects for robust comparison
+            if "-" in current_expiry_str:
+                parts = current_expiry_str.split("-")
+                if parts[1].isdigit(): fmt = "%d-%m-%Y"
+                else: fmt = "%d-%b-%Y"
+                curr_date = datetime.datetime.strptime(current_expiry_str, fmt).date()
+                
+                parts_exp = expiry.split("-")
+                if parts_exp[1].isdigit(): fmt_exp = "%d-%m-%Y"
+                else: fmt_exp = "%d-%b-%Y"
+                exp_date = datetime.datetime.strptime(expiry, fmt_exp).date()
+                match = (curr_date == exp_date)
             else:
-                logging.info(m)
+                match = (current_expiry_str == expiry)
+        except:
+            match = (current_expiry_str == expiry)
 
-            if(oi_mode=='full'):
-                oi_row['CALLS_Chart'],oi_row['PUTS_Chart']=0,0
-            #oi_data = oi_data.append(oi_row, ignore_index=True)
-            #oi_data = pd.concat([oi_data, oi_row], ignore_index=True)
-            oi_data = pd.concat([oi_data, pd.DataFrame([oi_row])], ignore_index=True)
+        if match:
+            oi_row = {col: 0 for col in col_names}
+            oi_row['Strike Price'] = data_list[m]['strikePrice']
+
+            for side in ['CE', 'PE']:
+                prefix = f"{'CALLS' if side == 'CE' else 'PUTS'}_"
+                if side in data_list[m] and data_list[m][side] is not None:
+                    d = data_list[m][side]
+                    oi_row[prefix + 'OI'] = d.get('openInterest', 0)
+                    oi_row[prefix + 'Chng in OI'] = d.get('changeinOpenInterest', 0)
+                    oi_row[prefix + 'Volume'] = d.get('totalTradedVolume', 0)
+                    oi_row[prefix + 'IV'] = d.get('impliedVolatility', 0)
+                    oi_row[prefix + 'LTP'] = d.get('lastPrice', 0)
+                    oi_row[prefix + 'Net Chng'] = d.get('change', 0)
+                    
+                    if oi_mode == 'full':
+                        # New API key mapping
+                        oi_row[prefix + 'Bid Qty'] = d.get('buyQuantity1', d.get('bidQty', 0))
+                        oi_row[prefix + 'Bid Price'] = d.get('buyPrice1', d.get('bidprice', 0))
+                        oi_row[prefix + 'Ask Price'] = d.get('sellPrice1', d.get('askPrice', 0))
+                        oi_row[prefix + 'Ask Qty'] = d.get('sellQuantity1', d.get('askQty', 0))
+                        oi_row[prefix + 'Chart'] = 0
+
+            rows_list.append(oi_row)
+
+    oi_data = pd.DataFrame(rows_list)
+    timestamp = payload.get('timestamp', payload.get('records', {}).get('timestamp', ''))
+    underlyingValue = payload.get('underlyingValue', payload.get('records', {}).get('underlyingValue', 0))
+    oi_data['time_stamp'] = timestamp
+    return oi_data, float(underlyingValue), timestamp
 
 
-
-            oi_data['time_stamp']=payload['records']['timestamp']
-    return oi_data,float(payload['records']['underlyingValue']),payload['records']['timestamp']
-
+def nse_quote_derivatives(symbol):
+    symbol = nsesymbolpurify(symbol)
+    if symbol.upper() in fnolist():
+        payload = nsefetch('https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolDerivativesData&symbol='+symbol)
+        return payload
+    else:
+        return {"error": f"{symbol} is not in derivatives list."}
 
 def nse_quote(symbol,section=""):
-    #https://forum.unofficed.com/t/nsetools-get-quote-is-not-fetching-delivery-data-and-delivery-can-you-include-this-as-part-of-feature-request/1115/4
+    #https://forum.unofficed.com/t/nsetools-get-quote-is-not-fetching-delivery-data-and-delivery-can-you-include-this-as-part-of-feature-request/1115/4    
     symbol = nsesymbolpurify(symbol)
 
     if(section==""):
-        if any(x in symbol for x in fnolist()):
-            payload = nsefetch('https://www.nseindia.com/api/quote-derivative?symbol='+symbol)
+        if any(x in symbol for x in indices):
+            payload = nsefetch('https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolDerivativesData&symbol='+symbol)
         else:
-            payload = nsefetch('https://www.nseindia.com/api/quote-equity?symbol='+symbol)
+            payload = nsefetch('https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolData&marketType=N&series=EQ&symbol='+symbol)
         return payload
 
     if(section!=""):
-        payload = nsefetch('https://www.nseindia.com/api/quote-equity?symbol='+symbol+'&section='+section)
+        payload = nsefetch('https://www.nseindia.com/api/quote-equity?symbol='+symbol+'&section='+section)            
         return payload
+def nse_expirydetails(payload, i=0, symbol=None):
+    expiry_dates = []
+    if 'records' in payload:
+        expiry_dates = payload['records']['expiryDates']
+    elif 'expiryDates' in payload:
+        expiry_dates = payload['expiryDates']
+    elif 'data' in payload:
+        unique_dates = set()
+        for entry in payload['data']:
+            if 'expiryDate' in entry:
+                unique_dates.add(entry['expiryDate'])
+        expiry_dates = sorted(list(unique_dates), key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
 
+    # Filter future dates
+    future_expiry_dates = []
+    if expiry_dates:
+        temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
+        future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
 
-def nse_expirydetails(payload,i=0): #Can make problem. Use nse_expirydetails_by_symbol()
+    # Fallback to expiry_list if i is out of range and we can determine the symbol
+    if i >= len(future_expiry_dates):
+        if not symbol and 'data' in payload and len(payload['data']) > 0:
+            # Try to extract symbol from payload data
+            first_entry = payload['data'][0]
+            symbol = first_entry.get('symbol')
+            if not symbol:
+                if 'CE' in first_entry and first_entry['CE']:
+                    symbol = first_entry['CE'].get('underlying')
+                elif 'PE' in first_entry and first_entry['PE']:
+                    symbol = first_entry['PE'].get('underlying')
+        
+        if symbol:
+            dates = expiry_list(symbol, type="list")
+            if dates:
+                # Filter future dates from expiry_list as well
+                temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in dates]
+                future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
 
-    expiry_dates = payload['records']['expiryDates']
-    expiry_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
-    expiry_dates = [date.strftime("%d-%b-%Y") for date in expiry_dates if date >= datetime.datetime.now().date()]
-    currentExpiry=expiry_dates[i]    
-    currentExpiry = datetime.datetime.strptime(currentExpiry,'%d-%b-%Y').date()  # converting json datetime to alice datetime
-    date_today = run_time.strftime('%Y-%m-%d')  # required to remove hh:mm:ss
-    date_today = datetime.datetime.strptime(date_today,'%Y-%m-%d').date()
-    dte = (currentExpiry - date_today).days
-    return currentExpiry,dte
+    if i >= len(future_expiry_dates):
+        return None, None
 
-def pcr(payload,inp='0'):
+    currentExpiry = future_expiry_dates[i]
+    currentExpiry_dt = datetime.datetime.strptime(currentExpiry, '%d-%b-%Y').date()
+    date_today = run_time.date()
+    dte = (currentExpiry_dt - date_today).days
+    return currentExpiry_dt, dte
+def pcr(payload, inp=0):
     ce_oi = 0
     pe_oi = 0
-    for i in payload['records']['data']:
-        if i['expiryDate'] == payload['records']['expiryDates'][inp]:
+    
+    # Identify the data and expiry dates based on structure
+    if 'records' in payload:
+        # Legacy structure
+        data_list = payload['records']['data']
+        expiry_dates = payload['records']['expiryDates']
+    elif 'data' in payload:
+        # New structure
+        data_list = payload['data']
+        # Extract unique sorted expiry dates from data
+        unique_dates = set()
+        for entry in data_list:
+            ed = entry.get('expiryDate') or entry.get('expiryDates')
+            if ed:
+                unique_dates.add(ed)
+        expiry_dates = sorted(list(unique_dates), key=lambda x: datetime.datetime.strptime(x, "%d-%m-%Y") if "-" in x and x.split("-")[1].isdigit() else datetime.datetime.strptime(x, "%d-%b-%Y"))
+    else:
+        # If payload is empty or unknown, we can't proceed without fetching
+        # But we need a symbol. Try to get it from payload if possible.
+        return 0.0
+
+    if not expiry_dates or inp >= len(expiry_dates):
+        # Requested index is outside the current payload's scope.
+        # Check if we can fetch more data for this specific symbol.
+        symbol = payload.get('symbol') or payload.get('records', {}).get('symbol')
+        if not symbol and 'data' in payload and len(payload['data']) > 0:
+             first = payload['data'][0]
+             symbol = first.get('symbol') or (first.get('CE') and first['CE'].get('underlying'))
+        
+        if symbol and inp > 0:
+            # Fetch all expiries to find the target one
+            all_expiries = expiry_list(symbol, type="list")
+            if inp < len(all_expiries):
+                target = all_expiries[inp]
+                # Fetch specific expiry data using getOptionChainData
+                url = f'https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getOptionChainData&symbol={nsesymbolpurify(symbol)}&params=expiryDate={target}'
+                new_payload = nsefetch(url)
+                if new_payload and 'data' in new_payload:
+                    for entry in new_payload['data']:
+                        ce_oi += entry.get('CE', {}).get('openInterest', 0) if entry.get('CE') else 0
+                        pe_oi += entry.get('PE', {}).get('openInterest', 0) if entry.get('PE') else 0
+                    if ce_oi > 0: return pe_oi / ce_oi
+        return 0.0
+        
+    target_expiry = expiry_dates[inp]
+    
+    found_data = False
+    for i in data_list:
+        curr_exp = i.get('expiryDate') or i.get('expiryDates')
+        if curr_exp == target_expiry:
+            found_data = True
             try:
-                ce_oi += i['CE']['openInterest']
-                pe_oi += i['PE']['openInterest']
-            except KeyError:
+                if 'CE' in i and i['CE']:
+                    ce_oi += i['CE'].get('openInterest', 0)
+                if 'PE' in i and i['PE']:
+                    pe_oi += i['PE'].get('openInterest', 0)
+            except (KeyError, TypeError):
                 pass
+    
+    # If we didn't find any data for the target expiry in the payload,
+    # it means the payload was filtered (e.g. by the scrapper). Fetch it now.
+    if not found_data:
+        symbol = payload.get('symbol') or payload.get('records', {}).get('symbol')
+        if symbol:
+            url = f'https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getOptionChainData&symbol={nsesymbolpurify(symbol)}&params=expiryDate={target_expiry}'
+            new_payload = nsefetch(url)
+            if new_payload and 'data' in new_payload:
+                for entry in new_payload['data']:
+                    ce_oi += entry.get('CE', {}).get('openInterest', 0) if entry.get('CE') else 0
+                    pe_oi += entry.get('PE', {}).get('openInterest', 0) if entry.get('PE') else 0
+
+    if ce_oi == 0:
+        return 0.0
+        
     return pe_oi / ce_oi
 
 #forum.unofficed.com/t/unable-to-find-nse-quote-meta-api/702/4
 #Refer https://forum.unofficed.com/t/changed-the-nse-quote-ltp-function/1276
 def nse_quote_ltp(symbol,expiryDate="latest",optionType="-",strikePrice=0):
-  payload = nse_quote(symbol)
+  if(optionType!="-"):
+      payload = nse_quote_derivatives(symbol)
+  else:
+      if any(x in symbol for x in indices):
+          payload = nse_quote_derivatives(symbol)
+      else:
+          payload = nsefetch('https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolData&marketType=N&series=EQ&symbol='+symbol)
+
+  lastPrice = 0
+
+  if(optionType=="-"):
+    if 'equityResponse' in payload and len(payload['equityResponse']) > 0:
+        lastPrice = payload['equityResponse'][0]['orderBook']['lastPrice']
+    elif 'data' in payload and len(payload['data']) > 0:
+        # For indices, underlyingValue in derivative payload is the current index LTP
+        lastPrice = payload['data'][0].get('underlyingValue')
+    return lastPrice
 
   meta = "Options"
   if(optionType=="Fut"): meta = "Futures"
@@ -248,36 +383,68 @@ def nse_quote_ltp(symbol,expiryDate="latest",optionType="-",strikePrice=0):
   if(optionType=="CE"):optionType="Call"
 
   if(expiryDate=="latest") or (expiryDate=="next"):
+    i = 0 if expiryDate=="latest" else 1
+    expiry_dates = []
+    
+    # Extract from new FNO payload structure
+    if 'data' in payload:
+        unique_dates = set()
+        for entry in payload['data']:
+            if 'expiryDate' in entry:
+                it = entry.get('instrumentType', '')
+                if (meta == "Futures" and "FUT" in it) or (meta == "Options" and "OPT" in it):
+                    unique_dates.add(entry['expiryDate'])
+        expiry_dates = sorted(list(unique_dates), key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
+    
+    # Filter future dates
+    future_expiry_dates = []
+    if expiry_dates:
+        temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
+        future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
 
-    if(meta=="Futures"):
-      selected_key = next((key for key in payload["expiryDatesByInstrument"] if "futures" in key.lower()), None)
-    if(meta=="Options"):
-      selected_key = next((key for key in payload["expiryDatesByInstrument"] if "options" in key.lower()), None)
-
-    expiry_dates=payload["expiryDatesByInstrument"][selected_key]
-    expiry_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
-    expiry_dates = [date.strftime("%d-%b-%Y") for date in expiry_dates if date >= datetime.datetime.now().date()]
-    if(expiryDate=="latest"): expiryDate=expiry_dates[0]
-    if(expiryDate=="next"): expiryDate=expiry_dates[1]
+    # Fallback to expiry_list
+    if i >= len(future_expiry_dates):
+        dates = expiry_list(symbol, type="list")
+        if dates:
+            temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in dates]
+            future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
+    
+    if i < len(future_expiry_dates):
+        expiryDate = future_expiry_dates[i]
   
 
   if(optionType!="-"):
-      for i in payload['stocks']:
-        if meta in i['metadata']['instrumentType']:
-          #print(i['metadata'])
+      data_list = payload.get('data', [])
+      for i in data_list:
+        # Check instrument type in identifier or metadata if present
+        if meta == "Futures":
+            is_match = "FUT" in i.get('instrumentType', '')
+        else:
+            is_match = "OPT" in i.get('instrumentType', '')
+            
+        if is_match:
           if(optionType=="Fut"):
-              if(i['metadata']['expiryDate']==expiryDate):
-                lastPrice = i['metadata']['lastPrice']
+              if(i.get('expiryDate')==expiryDate):
+                lastPrice = i.get('lastPrice')
+                break
 
           if((optionType=="Put")or(optionType=="Call")):
-              if (i['metadata']["expiryDate"]==expiryDate):
-                if (i['metadata']["optionType"]==optionType):
-                  if (i['metadata']["strikePrice"]==strikePrice):
-                    #print(i['metadata'])
-                    lastPrice = i['metadata']['lastPrice']
-
-  if(optionType=="-"):
-      lastPrice = payload['underlyingValue']
+              # Some APIs have optionType as 'PE'/'CE' or 'Put'/'Call'
+              p_opt_type = i.get('optionType')
+              if p_opt_type == "PE": p_opt_type = "Put"
+              if p_opt_type == "CE": p_opt_type = "Call"
+              
+              if (i.get("expiryDate")==expiryDate):
+                if (p_opt_type==optionType):
+                  # strikePrice in payload is often string with padding
+                  try:
+                      p_strike = float(str(i.get("strikePrice")).strip())
+                  except:
+                      p_strike = 0
+                      
+                  if (p_strike==float(strikePrice)):
+                    lastPrice = i.get('lastPrice')
+                    break
 
   return lastPrice
 
@@ -291,47 +458,85 @@ def nse_quote_ltp(symbol,expiryDate="latest",optionType="-",strikePrice=0):
 # print(nse_quote_ltp("RELIANCE","latest","PE",2300))
 # print(nse_quote_ltp("RELIANCE","next","PE",2300))
 
-def nse_quote_meta(symbol, expiryDate="latest", optionType="-", strikePrice=0):
-  payload = nse_quote(symbol)
-  #https://stackoverflow.com/questions/7961363/removing-duplicates-in-lists
-  #https://stackoverflow.com/questions/19199984/sort-a-list-in-python
+def nse_quote_meta(symbol,expiryDate="latest",optionType="-",strikePrice=0):
+  if(optionType!="-"):
+      payload = nse_quote_derivatives(symbol)
+  else:
+      if any(x in symbol for x in indices):
+          payload = nse_quote_derivatives(symbol)
+      else:
+          payload = nsefetch('https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getSymbolData&marketType=N&series=EQ&symbol='+symbol)
 
-  #BankNIFTY and NIFTY has weekly options. Using this Jugaad which has primary base of assumption that Reliance will not step out of FNO.
-  #forum.unofficed.com/t/unable-to-find-nse-quote-meta-api/702/4
-  if((symbol in indices) and (optionType=="Fut")):
-    dates = expiry_list("RELIANCE","list")
-    if(expiryDate=="latest"): expiryDate=dates[0]
-    if(expiryDate=="next"): expiryDate=dates[1]
+  metadata = {}
 
-  if(expiryDate=="latest") or (expiryDate=="next"):
-    dates=list(set((payload["expiryDates"])))
-    dates.sort(key = lambda date: datetime.datetime.strptime(date, '%d-%b-%Y'))
-    if(expiryDate=="latest"): expiryDate=dates[0]
-    if(expiryDate=="next"): expiryDate=dates[1]
+  if(optionType=="-"):
+      if 'equityResponse' in payload and len(payload['equityResponse']) > 0:
+          metadata = payload['equityResponse'][0].get('metaData', {})
+      return metadata
 
   meta = "Options"
   if(optionType=="Fut"): meta = "Futures"
   if(optionType=="PE"):optionType="Put"
   if(optionType=="CE"):optionType="Call"
 
-  metadata = None
+  if(expiryDate=="latest") or (expiryDate=="next"):
+    i = 0 if expiryDate=="latest" else 1
+    expiry_dates = []
+    if 'data' in payload:
+        unique_dates = set()
+        for entry in payload['data']:
+            if 'expiryDate' in entry:
+                it = entry.get('instrumentType', '')
+                if (meta == "Futures" and "FUT" in it) or (meta == "Options" and "OPT" in it):
+                    unique_dates.add(entry['expiryDate'])
+        expiry_dates = sorted(list(unique_dates), key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
+    
+    future_expiry_dates = []
+    if expiry_dates:
+        temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
+        future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
 
-  if optionType != "-":
-      for item in payload.get('stocks', []):
-          if meta in item['metadata']['instrumentType']:
-              if optionType == "Fut":
-                  if item['metadata']['expiryDate'] == expiryDate:
-                      metadata = item['metadata']
-                      break
+    if i >= len(future_expiry_dates):
+        dates = expiry_list(symbol, type="list")
+        if dates:
+            temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in dates]
+            future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
+    
+    if i < len(future_expiry_dates):
+        expiryDate = future_expiry_dates[i]
+    
+    # print(f"DEBUG: Calculated expiryDate={expiryDate}, meta={meta}, optionType={optionType}")
 
-              if optionType in ("Put", "Call"):
-                  if (item['metadata']['expiryDate'] == expiryDate and
-                      item['metadata']['optionType'] == optionType and
-                      item['metadata']['strikePrice'] == strikePrice):
-                      metadata = item['metadata']
-                      break
-  else:
-      metadata = payload.get('metadata')
+  if(optionType!="-"):
+      data_list = payload.get('data', [])
+      # print(f"DEBUG: Searching in {len(data_list)} items")
+      for i in data_list:
+        if meta == "Futures":
+            is_match = "FUT" in i.get('instrumentType', '')
+        else:
+            is_match = "OPT" in i.get('instrumentType', '')
+            
+        if is_match:
+          if(optionType=="Fut"):
+              if(i.get('expiryDate')==expiryDate):
+                metadata = i
+                break
+
+          if((optionType=="Put")or(optionType=="Call")):
+              p_opt_type = i.get('optionType')
+              if p_opt_type == "PE": p_opt_type = "Put"
+              if p_opt_type == "CE": p_opt_type = "Call"
+              
+              if (i.get("expiryDate")==expiryDate):
+                if (p_opt_type==optionType):
+                  try:
+                      p_strike = float(str(i.get("strikePrice")).strip())
+                  except:
+                      p_strike = 0
+                      
+                  if (p_strike==float(strikePrice)):
+                    metadata = i
+                    break
 
   return metadata
 
@@ -412,19 +617,31 @@ def nse_past_results(symbol):
     symbol = nsesymbolpurify(symbol)
     return nsefetch('https://www.nseindia.com/api/results-comparision?symbol='+symbol)
 
-def expiry_list(symbol,type="list"):
-    logging.info("Getting Expiry List of: "+ symbol)
+def expiry_list(symbol, type=""):
+    logging.info("Getting Expiry List of: " + symbol)
+    symbol = nsesymbolpurify(symbol)
+    url = f'https://www.nseindia.com/api/NextApi/apiClient/GetQuoteApi?functionName=getOptionChainDropdown&symbol={symbol}'
+    payload = nsefetch(url)
+    
+    if not payload or 'expiryDates' not in payload:
+        return [] if type == "list" else pd.DataFrame()
 
-    if(type!="list"):
-        payload = nse_optionchain_scrapper(symbol)
-        payload = pd.DataFrame({'Date':payload['records']['expiryDates']})
-        return payload
-
-    if(type=="list"):
-        payload = nse_quote(symbol)
-        dates=list(set((payload["expiryDates"])))
-        dates.sort(key = lambda date: datetime.datetime.strptime(date, '%d-%b-%Y'))
-        return dates
+    expiry_dates = payload['expiryDates']
+    
+    # Format dates from DD-MM-YYYY to DD-Mon-YYYY
+    formatted_dates = []
+    for d in expiry_dates:
+        try:
+            dt = datetime.datetime.strptime(d, "%d-%m-%Y")
+            formatted_dates.append(dt.strftime("%d-%b-%Y"))
+        except:
+            formatted_dates.append(d)
+    
+    if type == "list":
+        return formatted_dates
+    else:
+        # If anything other than "list" is provided (like "df", "pandas", or default), return DataFrame
+        return pd.DataFrame({'Date': formatted_dates})
 
 
 def nse_custom_function_secfno(symbol,attribute="lastPrice"):
@@ -905,7 +1122,7 @@ def nse_largedeals(mode="bulk_deals"):
     return pd.DataFrame(payload["SHORT_DEALS_DATA"])
   if(mode=="block_deals"):
     return pd.DataFrame(payload["BLOCK_DEALS_DATA"])
-  
+
 def nse_largedeals_historical(from_date, to_date, mode="bulk_deals"):
     if mode == "bulk_deals":
         mode = "bulk-deals"
@@ -936,31 +1153,50 @@ def is_market_open(segment = "FO"): #COM,CD,CB,CMOT,COM,FO,IRD,MF,NDM,NTRP,SLBS
 
     # Check if today's date is in the holiday_json
     for holiday in holiday_json:
-        print("Loop Ran", holiday['tradingDate'])
         if holiday['tradingDate'] != today_date:
-            continue
+            print("FNO Market is open today. Have a Nice Trade!")
+            return True
         if holiday['tradingDate'] == today_date:
             print(f"Market is closed today because of {holiday['description']}")
             return False
-    print("FNO Market is open today. Have a Nice Trade!")
-    return True
 
 def nse_expirydetails_by_symbol(symbol,meta ="Futures",i=0):
-    payload = nse_quote(symbol)
+    payload = nse_quote_derivatives(symbol)
+    expiry_dates = []
 
-    if(meta=="Futures"):
-      selected_key = next((key for key in payload["expiryDatesByInstrument"] if "futures" in key.lower()), None)
-    if(meta=="Options"):
-      selected_key = next((key for key in payload["expiryDatesByInstrument"] if "options" in key.lower()), None)
+    # Extract from new FNO payload structure
+    if 'data' in payload:
+        unique_dates = set()
+        for entry in payload['data']:
+            if 'expiryDate' in entry:
+                # Filter by meta type if possible, though 'data' usually contains all
+                # To be precise, we can check instrumentType
+                it = entry.get('instrumentType', '')
+                if (meta == "Futures" and "FUT" in it) or (meta == "Options" and "OPT" in it):
+                    unique_dates.add(entry['expiryDate'])
+        expiry_dates = sorted(list(unique_dates), key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
 
-    expiry_dates=payload["expiryDatesByInstrument"][selected_key]
-    expiry_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
-    expiry_dates = [date.strftime("%d-%b-%Y") for date in expiry_dates if date >= datetime.datetime.now().date()]
-    
-    currentExpiry=expiry_dates[i]
-    currentExpiry = datetime.datetime.strptime(currentExpiry,'%d-%b-%Y').date()    
-    dte = (currentExpiry - datetime.datetime.now().date()).days
-    return currentExpiry,dte
+    # Filter future dates
+    future_expiry_dates = []
+    if expiry_dates:
+        temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in expiry_dates]
+        future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
+
+    # Fallback to expiry_list if i is out of range
+    if i >= len(future_expiry_dates):
+        dates = expiry_list(symbol, type="list")
+        if dates:
+            temp_dates = [datetime.datetime.strptime(date, "%d-%b-%Y").date() for date in dates]
+            future_expiry_dates = sorted([date.strftime("%d-%b-%Y") for date in temp_dates if date >= datetime.datetime.now().date()], key=lambda x: datetime.datetime.strptime(x, "%d-%b-%Y"))
+
+    if i >= len(future_expiry_dates):
+        return None, None
+
+    currentExpiry = future_expiry_dates[i]
+    currentExpiry_dt = datetime.datetime.strptime(currentExpiry, '%d-%b-%Y').date()
+    date_today = run_time.date()
+    dte = (currentExpiry_dt - date_today).days
+    return currentExpiry_dt, dte
 
 def security_wise_archive(from_date, to_date, symbol, series="ALL"):   
     base_url = "https://www.nseindia.com/api/historical/securityArchives"
